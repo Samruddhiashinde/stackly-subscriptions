@@ -1,0 +1,14 @@
+name = "subscription-widget"
+type = "theme"
+uid = "277ae083-dfcd-a386-798b-084e9161d6ad95ef2b0b"
+
+[settings]
+[[settings.blocks]]
+type = "subscription_selector"
+name = "Subscription Selector"
+target = "section"
+enabled_on = ["product"]
+
+[[settings.blocks.settings]]
+type = "paragraph"
+content = "This block displays subscription options for products with selling plans. It will automatically appear on product pages where subscriptions are available."
