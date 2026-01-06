@@ -37,278 +37,475 @@
 }
 {% endschema %}
 
-<div class="subscription-selector-block">
-  <h3>{{ block.settings.title }}</h3>
-  
-  {% comment %} DEBUG INFO - Remove this later {% endcomment %}
-  <div style="background: #fffbeb; padding: 1rem; border: 1px solid #fbbf24; border-radius: 4px; margin-bottom: 1rem;">
-    <strong>Debug Info:</strong><br>
-    Product ID: {{ product.id }}<br>
-    Product requires selling plan: {{ product.requires_selling_plan }}<br>
-    Number of selling plan groups: {{ product.selling_plan_groups.size }}<br>
-    Plan filter: "{{ block.settings.plan_name_filter }}"<br>
-    {% if product.selling_plan_groups.size > 0 %}
-      Available plans:
-      <ul>
-        {% for group in product.selling_plan_groups %}
-          <li>{{ group.name }} ({{ group.selling_plans.size }} options)</li>
-        {% endfor %}
-      </ul>
-    {% endif %}
-  </div>
-  
+<div class="stackly-subscription-widget">
   {% if product.selling_plan_groups.size > 0 %}
-    <div class="subscription-options">
-      {% assign plan_filter = block.settings.plan_name_filter %}
-      {% assign found_plans = false %}
-      
+    {% assign plan_filter = block.settings.plan_name_filter %}
+    {% assign found_plans = false %}
+
+    <div class="stackly-header">
+      <h3 class="stackly-title">{{ block.settings.title }}</h3>
+    </div>
+
+    <div class="stackly-options">
+      <!-- One-time Purchase Option -->
+      <label class="stackly-option">
+        <input
+          type="radio"
+          name="purchase_option"
+          value="onetime"
+          class="stackly-radio"
+          checked
+        >
+        <div class="stackly-option-content">
+          <div class="stackly-option-header">
+            <span class="stackly-option-title">One-time Purchase</span>
+          </div>
+          <span class="stackly-option-price">{{ product.price | money }}</span>
+        </div>
+      </label>
+
+      <!-- Subscription Options -->
       {% for group in product.selling_plan_groups %}
-        {% comment %} Show all plans if filter is empty, or only matching plan {% endcomment %}
         {% if plan_filter == blank or group.name == plan_filter %}
           {% assign found_plans = true %}
-          
-          <div class="selling-plan-group">
-            <h4>{{ group.name }}</h4>
-            
-            {% for plan in group.selling_plans %}
-              <label class="selling-plan-option">
-                <input 
-                  type="radio" 
-                  name="selling_plan" 
-                  value="{{ plan.id }}"
-                  data-plan-name="{{ plan.name }}"
-                  class="selling-plan-radio"
-                >
-                <span class="plan-details">
-                  <span class="plan-name">{{ plan.name }}</span>
+
+          {% for plan in group.selling_plans %}
+            <label class="stackly-option stackly-subscription-option">
+              <input
+                type="radio"
+                name="purchase_option"
+                value="{{ plan.id }}"
+                data-plan-name="{{ plan.name }}"
+                data-group-name="{{ group.name }}"
+                class="stackly-radio"
+              >
+              <div class="stackly-option-content">
+                <div class="stackly-option-header">
+                  <span class="stackly-option-title">{{ plan.name }}</span>
                   {% if plan.price_adjustments.size > 0 %}
                     {% assign adjustment = plan.price_adjustments.first %}
-                    <span class="plan-discount">Save {{ adjustment.value }}%</span>
+                    {% comment %} Only show percentage badge if value_type is 'percentage' {% endcomment %}
+                    {% if adjustment.value_type == 'percentage' %}
+                      <span class="stackly-badge">Save {{ adjustment.value }}%</span>
+                    {% endif %}
                   {% endif %}
-                </span>
-              </label>
-            {% endfor %}
-          </div>
+                </div>
+                <span class="stackly-option-description">{{ group.name }}</span>
+                {% assign variant = product.selected_or_first_available_variant %}
+                {% if plan.price_adjustments.size > 0 %}
+                  {% assign adjustment = plan.price_adjustments.first %}
+                  {% comment %} Check the value_type to determine how to display the price {% endcomment %}
+                  {% if adjustment.value_type == 'percentage' %}
+                    {% comment %} It's a percentage discount - calculate and show discount {% endcomment %}
+                    {% assign discount_amount = variant.price | times: adjustment.value | divided_by: 100 %}
+                    {% assign discounted_price = variant.price | minus: discount_amount %}
+                    <div class="stackly-price-group">
+                      <span class="stackly-option-price">{{ discounted_price | money }}</span>
+                      <span class="stackly-original-price">{{ variant.price | money }}</span>
+                    </div>
+                  {% elsif adjustment.value_type == 'price' %}
+                    {% comment %} It's a fixed price - show the fixed price directly, no discount calculation or badge {% endcomment %}
+                    {% comment %} The adjustment.value is in the currency's subunit (cents for USD, etc.) {% endcomment %}
+                    <span class="stackly-option-price">{{ adjustment.value | money }}</span>
+                  {% elsif adjustment.value_type == 'fixed_amount' %}
+                    {% comment %} It's a fixed amount off - calculate and show discount {% endcomment %}
+                    {% assign discounted_price = variant.price | minus: adjustment.value %}
+                    <div class="stackly-price-group">
+                      <span class="stackly-option-price">{{ discounted_price | money }}</span>
+                      <span class="stackly-original-price">{{ variant.price | money }}</span>
+                    </div>
+                  {% else %}
+                    {% comment %} Fallback: show variant price {% endcomment %}
+                    <span class="stackly-option-price">{{ variant.price | money }}</span>
+                  {% endif %}
+                {% else %}
+                  <span class="stackly-option-price">{{ variant.price | money }}</span>
+                {% endif %}
+              </div>
+            </label>
+          {% endfor %}
         {% endif %}
       {% endfor %}
-      
+
       {% unless found_plans %}
-        <div class="no-plans-message">
-          <p>
+        <div class="stackly-empty-state">
+          <svg class="stackly-empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <p class="stackly-empty-text">
             {% if plan_filter != blank %}
-              No subscription plan named "{{ plan_filter }}" found for this product. 
-              Available plans are listed in the debug info above.
+              No subscription plan named "{{ plan_filter }}" is available for this product.
             {% else %}
               No subscription plans match your filter.
             {% endif %}
           </p>
         </div>
       {% endunless %}
-      
-      {% if found_plans %}
-        <div class="subscription-benefits">
-          <p>{{ block.settings.subscription_benefits }}</p>
-        </div>
-      {% endif %}
     </div>
+
+    {% if found_plans %}
+      <div class="stackly-benefits">
+        <svg class="stackly-check-icon" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+        </svg>
+        <span class="stackly-benefits-text">{{ block.settings.subscription_benefits }}</span>
+      </div>
+    {% endif %}
+
+    <div class="stackly-actions">
+      <button class="stackly-btn stackly-btn-primary" id="stackly-add-to-cart">
+        <svg class="stackly-btn-icon" viewBox="0 0 20 20" fill="currentColor">
+          <path d="M3 1a1 1 0 000 2h1.22l.305 1.222a.997.997 0 00.01.042l1.358 5.43-.893.892C3.74 11.846 4.632 14 6.414 14H15a1 1 0 000-2H6.414l1-1H14a1 1 0 00.894-.553l3-6A1 1 0 0017 3H6.28l-.31-1.243A1 1 0 005 1H3zM16 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM6.5 18a1.5 1.5 0 100-3 1.5 1.5 0 000 3z"/>
+        </svg>
+        {{ block.settings.add_to_cart_text }}
+      </button>
+      <button class="stackly-btn stackly-btn-secondary" id="stackly-buy-now">
+        {{ block.settings.buy_now_text }}
+      </button>
+    </div>
+
   {% else %}
-    <div class="no-plans-message">
-      <p><strong>⚠️ This product doesn't have subscription options available.</strong></p>
-      <p style="font-size: 0.875rem; margin-top: 0.5rem;">
-        To fix this, go to <strong>Products → Select this product → Scroll to Selling Plans → Click Manage → 
-        Select your subscription plan → Save</strong>
+    <div class="stackly-empty-state stackly-no-plans">
+      <svg class="stackly-empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+      </svg>
+      <p class="stackly-empty-title">No subscription options available</p>
+      <p class="stackly-empty-description">
+        This product doesn't have any subscription plans attached yet.
+        Go to your admin panel to add subscription options.
       </p>
     </div>
   {% endif %}
-  
-  <button class="add-to-cart-btn" id="subscription-add-to-cart">
-    {{ block.settings.add_to_cart_text }}
-  </button>
-  <button class="buy-now-btn" id="subscription-buy-now">
-    {{ block.settings.buy_now_text }}
-  </button>
 </div>
 
 <style>
-  .subscription-selector-block {
-    padding: 1.5rem;
-    border: 2px solid #008060;
-    border-radius: 8px;
+  .stackly-subscription-widget {
+    font-family: -apple-system, BlinkMacSystemFont, 'San Francisco', 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+    max-width: 100%;
     margin: 1.5rem 0;
-    background-color: #f9fafb;
   }
-  
-  .subscription-selector-block h3 {
-    margin-top: 0;
+
+  .stackly-header {
     margin-bottom: 1rem;
-    font-size: 1.25rem;
+  }
+
+  .stackly-title {
+    font-size: 1.125rem;
+    font-weight: 600;
     color: #202223;
+    margin: 0;
+    line-height: 1.5;
   }
-  
-  .subscription-options {
+
+  .stackly-options {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
     margin-bottom: 1rem;
   }
-  
-  .selling-plan-group {
-    margin: 1rem 0;
-  }
-  
-  .selling-plan-group h4 {
-    color: #008060;
-    margin-bottom: 0.75rem;
-    font-size: 1.1rem;
-  }
-  
-  .selling-plan-option {
+
+  .stackly-option {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     padding: 1rem;
-    margin: 0.75rem 0;
-    border: 2px solid #ddd;
-    border-radius: 6px;
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.15s ease;
     background-color: white;
   }
-  
-  .selling-plan-option:hover {
+
+  .stackly-option:hover {
+    border-color: #008060;
+    box-shadow: 0 0 0 3px rgba(0, 128, 96, 0.1);
+  }
+
+  .stackly-option:has(.stackly-radio:checked) {
     border-color: #008060;
     background-color: #f0fdf4;
+    box-shadow: 0 0 0 3px rgba(0, 128, 96, 0.1);
   }
-  
-  .selling-plan-option:has(input:checked) {
-    border-color: #008060;
-    background-color: #f0fdf4;
-  }
-  
-  .selling-plan-radio {
+
+  .stackly-radio {
     margin-right: 0.75rem;
-    width: 18px;
-    height: 18px;
+    margin-top: 0.125rem;
+    width: 20px;
+    height: 20px;
     cursor: pointer;
+    flex-shrink: 0;
+    accent-color: #008060;
   }
-  
-  .plan-details {
+
+  .stackly-option-content {
+    flex: 1;
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
   }
-  
-  .plan-name {
+
+  .stackly-option-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .stackly-option-title {
     font-weight: 600;
-    color: #202223;
-  }
-  
-  .plan-discount {
-    font-size: 0.875rem;
-    color: #008060;
-    font-weight: 500;
-  }
-  
-  .subscription-benefits {
-    margin: 1.5rem 0;
-    padding: 1rem;
-    background-color: #f0fdf4;
-    border-left: 4px solid #10b981;
-    border-radius: 4px;
-  }
-  
-  .subscription-benefits p {
-    margin: 0;
-    color: #166534;
     font-size: 0.9375rem;
+    color: #202223;
+    line-height: 1.4;
   }
-  
-  .no-plans-message {
-    padding: 2rem;
-    text-align: center;
-    background-color: #f3f4f6;
-    border-radius: 6px;
-    margin: 1rem 0;
+
+  .stackly-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.125rem 0.5rem;
+    background-color: #10b981;
+    color: white;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1.5;
   }
-  
-  .no-plans-message p {
-    margin: 0;
+
+  .stackly-option-description {
+    font-size: 0.875rem;
     color: #6b7280;
+    line-height: 1.4;
   }
-  
-  .add-to-cart-btn,
-  .buy-now-btn {
+
+  .stackly-price-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+  }
+
+  .stackly-option-price {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #008060;
+    line-height: 1.4;
+  }
+
+  .stackly-original-price {
+    font-size: 0.875rem;
+    color: #9ca3af;
+    text-decoration: line-through;
+    line-height: 1.4;
+  }
+
+  .stackly-benefits {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.625rem;
+    padding: 0.875rem 1rem;
+    background-color: #f0fdf4;
+    border-radius: 6px;
+    margin-bottom: 1rem;
+  }
+
+  .stackly-check-icon {
+    width: 20px;
+    height: 20px;
+    color: #10b981;
+    flex-shrink: 0;
+    margin-top: 0.125rem;
+  }
+
+  .stackly-benefits-text {
+    font-size: 0.875rem;
+    color: #166534;
+    line-height: 1.5;
+  }
+
+  .stackly-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+  }
+
+  .stackly-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
     width: 100%;
-    padding: 1rem;
-    margin: 0.5rem 0;
+    padding: 0.875rem 1.5rem;
     border: none;
     border-radius: 6px;
-    cursor: pointer;
+    font-size: 0.9375rem;
     font-weight: 600;
-    font-size: 1rem;
-    transition: all 0.2s;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    line-height: 1.5;
   }
-  
-  .add-to-cart-btn {
+
+  .stackly-btn-primary {
     background-color: #008060;
     color: white;
   }
-  
-  .add-to-cart-btn:hover {
+
+  .stackly-btn-primary:hover {
     background-color: #006e52;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   }
-  
-  .buy-now-btn {
+
+  .stackly-btn-primary:active {
+    transform: translateY(0);
+  }
+
+  .stackly-btn-secondary {
     background-color: white;
     color: #202223;
-    border: 2px solid #c9cccf;
+    border: 2px solid #e5e7eb;
   }
-  
-  .buy-now-btn:hover {
+
+  .stackly-btn-secondary:hover {
     border-color: #008060;
+    color: #008060;
   }
-  
-  .add-to-cart-btn:disabled,
-  .buy-now-btn:disabled {
+
+  .stackly-btn-icon {
+    width: 18px;
+    height: 18px;
+  }
+
+  .stackly-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+
+  .stackly-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2.5rem 1.5rem;
+    text-align: center;
+    background-color: #f9fafb;
+    border: 2px dashed #e5e7eb;
+    border-radius: 8px;
+  }
+
+  .stackly-empty-icon {
+    width: 48px;
+    height: 48px;
+    color: #9ca3af;
+    margin-bottom: 1rem;
+  }
+
+  .stackly-empty-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #374151;
+    margin: 0 0 0.5rem 0;
+  }
+
+  .stackly-empty-text,
+  .stackly-empty-description {
+    font-size: 0.875rem;
+    color: #6b7280;
+    margin: 0;
+    line-height: 1.5;
+    max-width: 400px;
+  }
+
+  @media (max-width: 768px) {
+    .stackly-subscription-widget {
+      margin: 1rem 0;
+    }
+
+    .stackly-title {
+      font-size: 1rem;
+    }
+
+    .stackly-option {
+      padding: 0.875rem;
+    }
+
+    .stackly-btn {
+      padding: 0.75rem 1.25rem;
+      font-size: 0.875rem;
+    }
   }
 </style>
 
 <script>
   document.addEventListener('DOMContentLoaded', function() {
-    const addToCartBtn = document.getElementById('subscription-add-to-cart');
-    const buyNowBtn = document.getElementById('subscription-buy-now');
-    
-    function getSelectedPlan() {
-      return document.querySelector('.selling-plan-radio:checked');
+    const addToCartBtn = document.getElementById('stackly-add-to-cart');
+    const buyNowBtn = document.getElementById('stackly-buy-now');
+
+    function getSelectedOption() {
+      return document.querySelector('input[name="purchase_option"]:checked');
     }
-    
-    // Add to cart with subscription
+
+    function addToCart(sellingPlanId) {
+      const formData = {
+        items: [{
+          id: {{ product.selected_or_first_available_variant.id }},
+          quantity: 1
+        }]
+      };
+
+      if (sellingPlanId && sellingPlanId !== 'onetime') {
+        formData.items[0].selling_plan = sellingPlanId;
+      }
+
+      fetch('/cart/add.js', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData)
+      })
+      .then(response => response.json())
+      .then(data => {
+        console.log('Added to cart:', data);
+        window.location.href = '/cart';
+      })
+      .catch(error => {
+        console.error('Error adding to cart:', error);
+        alert('Error adding to cart. Please try again.');
+      });
+    }
+
     if (addToCartBtn) {
       addToCartBtn.addEventListener('click', function(e) {
         e.preventDefault();
-        const selectedPlan = getSelectedPlan();
-        
-        if (!selectedPlan) {
-          alert('Please select a subscription plan');
+        const selectedOption = getSelectedOption();
+
+        if (!selectedOption) {
+          alert('Please select a purchase option');
           return;
         }
-        
-        console.log('Adding to cart with subscription plan:', selectedPlan.value);
-        // TODO: Implement actual add to cart logic here
+
+        addToCart(selectedOption.value);
       });
     }
-    
-    // Buy now with subscription
+
     if (buyNowBtn) {
       buyNowBtn.addEventListener('click', function(e) {
         e.preventDefault();
-        const selectedPlan = getSelectedPlan();
-        
-        if (!selectedPlan) {
-          alert('Please select a subscription plan');
+        const selectedOption = getSelectedOption();
+
+        if (!selectedOption) {
+          alert('Please select a purchase option');
           return;
         }
-        
-        console.log('Buy now with subscription plan:', selectedPlan.value);
-        // TODO: Implement actual buy now logic here
+
+        const sellingPlanId = selectedOption.value;
+        const variantId = {{ product.selected_or_first_available_variant.id }};
+
+        let checkoutUrl = '/checkout?line_items[][id]=' + variantId + '&line_items[][quantity]=1';
+
+        if (sellingPlanId && sellingPlanId !== 'onetime') {
+          checkoutUrl += '&line_items[][selling_plan]=' + sellingPlanId;
+        }
+
+        window.location.href = checkoutUrl;
       });
     }
   });

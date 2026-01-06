@@ -34,17 +34,63 @@ model Session {
 }
 
 model SubscriptionPlan {
-  id                String   @id @default(uuid())
-  shop              String
-  sellingPlanGroupId String  @unique
-  name              String
-  isActive          Boolean  @default(true)
-  billingInterval   String
-  intervalCount     Int
-  discountValue     Float
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id                 String   @id @default(uuid())
+  shop               String
+  sellingPlanGroupId String   @unique
+  name               String
+  isActive           Boolean  @default(true)
+  billingInterval    String
+  intervalCount      Int
+  discountType       String   @default("PERCENTAGE")
+  discountValue      Float
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   @@index([shop])
   @@index([sellingPlanGroupId])
+}
+
+model RazorpaySubscription {
+  id                     String   @id @default(uuid())
+  razorpaySubscriptionId String   @unique
+  razorpayCustomerId     String
+  shop                   String
+  shopifyOrderId         String?
+  shopifyContractId      String?
+  customerEmail          String
+  customerName           String
+  subscriptionPlanId     String
+  subscriptionPlanName   String
+  amount                 Float
+  currency               String   @default("INR")
+  status                 String
+  lineItemsJson          String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  payments               RazorpayPayment[]
+
+  @@index([shop])
+  @@index([razorpaySubscriptionId])
+  @@index([razorpayCustomerId])
+  @@index([shopifyContractId])
+}
+
+model RazorpayPayment {
+  id                     String   @id @default(uuid())
+  razorpayPaymentId      String   @unique
+  razorpaySubscriptionId String
+  shopifyOrderId         String?
+  amount                 Float
+  currency               String   @default("INR")
+  status                 String
+  paymentDate            DateTime
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  subscription           RazorpaySubscription @relation(fields: [razorpaySubscriptionId], references: [razorpaySubscriptionId])
+
+  @@index([razorpayPaymentId])
+  @@index([razorpaySubscriptionId])
+  @@index([shopifyOrderId])
 }
